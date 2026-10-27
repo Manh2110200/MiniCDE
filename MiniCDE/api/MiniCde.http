@@ -1,0 +1,64 @@
+@host = http://localhost:5000
+@kc = http://localhost:8080/realms/minicde/protocol/openid-connect/token
+
+### Token alice (acme.com)
+# @name loginAlice
+POST {{kc}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=minicde-web&username=alice&password=alice123
+
+### Token bob (acme.com - cùng tổ chức với alice)
+# @name loginBob
+POST {{kc}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=minicde-web&username=bob&password=bob123
+
+### Token carol (other.com - KHÁC tổ chức)
+# @name loginCarol
+POST {{kc}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=minicde-web&username=carol&password=carol123
+
+@alice = {{loginAlice.response.body.$.access_token}}
+@bob = {{loginBob.response.body.$.access_token}}
+@carol = {{loginCarol.response.body.$.access_token}}
+
+### 1. Hồ sơ (lần đầu tự tạo user + tổ chức)
+GET {{host}}/api/me
+Authorization: Bearer {{alice}}
+
+### 2. Alice tạo dự án
+POST {{host}}/api/projects
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{ "code": "PRJ1", "name": "Tòa nhà văn phòng A" }
+
+### 3. Bob đăng nhập lần đầu để có hồ sơ
+GET {{host}}/api/me
+Authorization: Bearer {{bob}}
+
+### 4. Alice thêm Bob làm Author (thay {id} bằng id dự án ở bước 2)
+POST {{host}}/api/projects/{id}/members
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{ "email": "bob@acme.com", "role": "Author" }
+
+### 5. Bob xem danh sách dự án (thấy PRJ1)
+GET {{host}}/api/projects
+Authorization: Bearer {{bob}}
+
+### 6. Carol (tổ chức khác) xem danh sách -> phải rỗng
+GET {{host}}/api/projects
+Authorization: Bearer {{carol}}
+
+### 7. Bob (Author) thử thêm thành viên -> 403
+POST {{host}}/api/projects/{id}/members
+Authorization: Bearer {{bob}}
+Content-Type: application/json
+
+{ "email": "carol@other.com", "role": "Viewer" }
